@@ -6,7 +6,6 @@ VisionControl is a local, webcam-based mouse controller for Windows, macOS, and 
 
 - Python 3.9-3.12
 - A standard webcam
-- An ASCII-only project path because of a MediaPipe model-loading limitation
 
 ## Setup
 
@@ -33,7 +32,7 @@ streamlit run dashboard.py
 
 The dashboard uses a real-time browser camera stream, processes frames locally with OpenCV and MediaPipe, shows gesture and FPS telemetry, and keeps cursor control paused until you enable it from the sidebar.
 
-On newer Python versions, MediaPipe uses the Tasks API. The first camera start downloads `hand_landmarker.task` into `.cache` when network access is available. If downloads are blocked, download that file from the URL in `hand_tracker.py` and place it at `.cache/hand_landmarker.task`.
+On newer Python versions, MediaPipe uses the Tasks API. The first camera start downloads `hand_landmarker.task` into `.cache` when network access is available, then loads the model from memory so non-ASCII project paths work. If downloads are blocked, download that file from the URL in `hand_tracker.py` and place it at `.cache/hand_landmarker.task`.
 
 Press `Q` in the camera window to exit. PyAutoGUI's corner failsafe remains enabled: move the physical mouse to any screen corner to abort cursor automation.
 

@@ -38,12 +38,3 @@ class Config:
 
 
 CONFIG = Config()
-
-
-def validate_project_path(path: str) -> None:
-    """Raise a clear error for paths known to break MediaPipe model loading."""
-    if not path.isascii():
-        raise RuntimeError(
-            "VisionControl must be located in an ASCII-only path. "
-            "Please rename or move the project folder and try again."
-        )

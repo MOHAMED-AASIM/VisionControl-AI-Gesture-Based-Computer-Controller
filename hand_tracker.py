@@ -1,7 +1,11 @@
 """MediaPipe hand tracking adapter for legacy and Tasks APIs."""
 
 from pathlib import Path
+from shutil import copyfileobj
+from tempfile import NamedTemporaryFile
+from threading import Lock
 from typing import Any, Optional, Sequence, Tuple
+from urllib.request import urlopen
 
 import cv2
 import mediapipe as mp
@@ -10,6 +14,7 @@ from config import Config, CONFIG
 
 Point = Tuple[float, float]
 MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+MODEL_DOWNLOAD_LOCK = Lock()
 CONNECTIONS = (
     (0, 1), (1, 2), (2, 3), (3, 4),
     (0, 5), (5, 6), (6, 7), (7, 8),
@@ -17,6 +22,37 @@ CONNECTIONS = (
     (9, 13), (13, 14), (14, 15), (15, 16),
     (13, 17), (17, 18), (18, 19), (19, 20), (0, 17),
 )
+
+
+def _load_model_asset(model_path: Path) -> bytes:
+    with MODEL_DOWNLOAD_LOCK:
+        if model_path.is_file() and model_path.stat().st_size > 0:
+            return model_path.read_bytes()
+
+        temporary_path = None
+        try:
+            model_path.parent.mkdir(parents=True, exist_ok=True)
+            with NamedTemporaryFile(
+                dir=model_path.parent,
+                prefix=f".{model_path.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
+                with urlopen(MODEL_URL, timeout=30) as response:
+                    copyfileobj(response, temporary_file)
+
+            if temporary_path.stat().st_size == 0:
+                raise ValueError("The downloaded model file is empty.")
+            temporary_path.replace(model_path)
+            return model_path.read_bytes()
+        except Exception as error:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
+            raise RuntimeError(
+                f"Unable to load the hand model at {model_path}. Check your network connection "
+                f"or set HAND_MODEL_PATH to a valid model file. Model URL: {MODEL_URL}"
+            ) from error
 
 
 class HandTracker:
@@ -39,14 +75,8 @@ class HandTracker:
             model_path = Path(getattr(config, "hand_model_path", ".cache/hand_landmarker.task"))
             if not model_path.is_absolute():
                 model_path = Path(__file__).resolve().parent / model_path
-            model_path.parent.mkdir(parents=True, exist_ok=True)
-            if not model_path.exists():
-                raise RuntimeError(
-                    f"Hand model is missing at {model_path}. Download hand_landmarker.task "
-                    f"from {MODEL_URL} and place it at that path."
-                )
             options = vision.HandLandmarkerOptions(
-                base_options=BaseOptions(model_asset_path=str(model_path)),
+                base_options=BaseOptions(model_asset_buffer=_load_model_asset(model_path)),
                 running_mode=vision.RunningMode.VIDEO,
                 num_hands=config.max_num_hands,
                 min_hand_detection_confidence=config.min_detection_confidence,
