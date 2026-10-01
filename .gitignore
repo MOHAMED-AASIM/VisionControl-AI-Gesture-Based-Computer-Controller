@@ -1,4 +1,5 @@
 .env
+.env.example
 __pycache__/
 .pytest_cache/
 # Playwright CLI output (may contain credentials)
